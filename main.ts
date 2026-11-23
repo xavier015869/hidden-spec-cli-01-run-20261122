@@ -549,7 +549,10 @@ function parseUnified(lines: string[], opts: EditOpts): Edit[] {
       continue;
     }
     if (line.startsWith('--- ') && (lines[i + 1] ?? '').startsWith('+++ ')) {
-      if (sec === null || phase === 'between') {
+      // A pair starts a new section unless it is the pair of the section
+      // whose header is open: a section that already has its pair is not
+      // still collecting one, so a further pair is not part of its header.
+      if (sec === null || phase === 'between' || sec.pairOld !== null) {
         sec = blankSection();
         sections.push(sec);
       }
@@ -787,7 +790,9 @@ function parseV4a(lines: string[], opts: EditOpts): Edit[] {
     const raw: { line: string; no: number }[] = [];
     while (i < lines.length) {
       const l = lines[i]!;
-      if (V4A_SECTION.test(l) || l.trim() === '*** End Patch') break;
+      // A line starting with a space is a body line of the section (its
+      // text may read as a marker); it never ends the section.
+      if (V4A_SECTION.test(l) || (l.trim() === '*** End Patch' && !l.startsWith(' '))) break;
       raw.push({ line: l, no: i + 1 });
       i += 1;
     }
@@ -821,7 +826,7 @@ function parseV4a(lines: string[], opts: EditOpts): Edit[] {
           cur = { anchor: anchor === '' ? null : anchor, body: [], eof: false };
           firstChunk = false;
           k += 1;
-        } else if (l.trim() === '*** End of File') {
+        } else if (l.trim() === '*** End of File' && !l.startsWith(' ')) {
           if (cur === null) throw new ParseFault(`error: parse ${no}`);
           cur.eof = true;
           chunks.push(cur);
